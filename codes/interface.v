@@ -20,15 +20,15 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module interface(clk, ideal_rx, ideal, intt, lcr, dll, dlh, rx, tx);
+//module interface(clk, rst, ideal, intt, lcr, dll, dlh, ideal_rx, rx, tx);
+module interface(clk, rst, ideal, intt, ideal_rx, rx, tx);
 
-input clk, ideal, intt;
-input [7:0]lcr, dll, dlh;
+input clk, rst, ideal_rx, ideal, intt, rx;
+//input [7:0]lcr, dll, dlh;
 output tx;
-input rx, ideal_rx;
 
 reg [7:0]conf_mod[7:0];
-wire br;
+wire br,baud_clk;
 wire [7:0]thr_out;
 reg [3:0]counter;
 
@@ -49,10 +49,13 @@ always @(negedge clk)
 begin 
     if(ideal==1'b1) //Write stage - transmission not started, the rules (data width and format) are determined here
     begin
-        conf_mod[3] = lcr;
-        conf_mod[6] = dll;
-        conf_mod[7] = dlh;
+//        conf_mod[0] = 8'b0000_0000;
+        conf_mod[3] = 8'b1000_1011;
+        conf_mod[6] = 8'b0000_0010;
+        conf_mod[7] = 8'b0000_0000;
     end
+    if(ideal_rx==1'b1)
+        conf_mod[1] = 8'b0000_0000;
 end
 
 reg [3:0]d_count;
@@ -80,7 +83,7 @@ begin
     data[15] = 8'b1010_1110;
 end
 
-always @(posedge br)
+always @(posedge baud_clk)
 if(ideal==1'b0)
 begin
     if(conf_mod[4][0]==1'b1)
@@ -90,14 +93,15 @@ begin
         else
             prev = data[d_count-4'b0001];
         conf_mod[0] = data[d_count];
-        if(d_count==4'b1111)
-            d_count = 4'b0000;
-        else
-            d_count = d_count + 4'b0001;
+        if(intt==1'b0)
+            if(d_count==4'b1111)
+                d_count = 4'b0000;
+            else
+                d_count = d_count + 4'b0001;
     end
     else
         conf_mod[0] = thr_out;
-    case(lcr[3])
+    case(conf_mod[3][3])
     1'b0:
     begin
         if(counter==4'b1001)
@@ -120,12 +124,10 @@ begin
             conf_mod[4][1] = ~conf_mod[4][1];
 end
 
-always @(negedge br)
+always @(negedge baud_clk)
 if(ideal==1'b0)
 begin
-    if(intt==1'b1)
-        d_count = d_count-4'b0001;
-    case(lcr[3])
+    case(conf_mod[3][3])
     1'b0:
     begin
     conf_mod[4][2] = 1'b0;
@@ -144,18 +146,20 @@ begin
     if(counter==4'b1010)
     begin
         conf_mod[4][0] = 1'b1;
-        conf_mod[4][6] = 1'b0;
-        conf_mod[4][2] = 1'b0;
     end
     if(counter==4'b1001)
         conf_mod[4][5] = 1'b0;
     if(counter==4'b0000)
+    begin
+        conf_mod[4][6] = 1'b0;
         conf_mod[4][0] = 1'b0;
+        conf_mod[4][2] = 1'b0;
+    end
     if(counter==4'b1000)
         conf_mod[4][5] = 1'b1;
     if(counter==4'b1001)
     begin
-        case(lcr[5:3])
+        case(conf_mod[3][5:3])
         3'b001: conf_mod[4][6] = ~conf_mod[4][1];
         3'b011: conf_mod[4][6] = conf_mod[4][1];
         3'b101: conf_mod[4][6] = 1'b1;
@@ -167,11 +171,11 @@ begin
     endcase
 end
 
-baud_gen brg(.clk(clk), .br(br), .dll(conf_mod[6]), .dlh(conf_mod[7][3:0]));
-transmit tx_blk(.br(br), .start(conf_mod[4][0]), .stop(conf_mod[4][5]), .parity({conf_mod[4][6],conf_mod[4][2]}), .intt(intt), .thr(conf_mod[0]), .prev(prev), .thr_out(thr_out), .tx(tx));
+baud_gen_16 brg(.clk(clk), .rst(rst), .br(br), .div({conf_mod[7],conf_mod[6]}));
+baud_gen baud(.clk(br), .rst(rst), .br(baud_clk));
+transmit tx_blk(.br(baud_clk), .start(conf_mod[4][0]), .stop(conf_mod[4][5]), .parity({conf_mod[4][6],conf_mod[4][2]}), .intt(intt), .thr(conf_mod[0]), .prev(prev), .thr_out(thr_out), .tx(tx));
 
 reg [7:0]rec_data[7:0];
-wire sample_clk;
 wire [7:0]rv_data;
 reg [2:0]d_count2, rx_count;
 initial
@@ -188,7 +192,7 @@ begin
     rec_data[7] = 8'b0000_0000;
 end
    
-always @(negedge sample_clk)
+always @(negedge baud_clk)
 if(ideal_rx==1'b0)
 begin
     if(rx_count == 3'b000)
@@ -202,6 +206,5 @@ begin
     rx_count = rx_count + 3'b001;
 end  
 
-sample sc(.clk(clk), .sample_clk(sample_clk));
-recv rv(.clk(clk), .sample_clk(sample_clk), .rx(rx), .ideal_rx(ideal_rx), .rv_data(rv_data));
+recv rv(.clk(br), .sample_clk(baud_clk), .rx(rx), .ideal_rx(ideal_rx), .rv_data(rv_data));
 endmodule
