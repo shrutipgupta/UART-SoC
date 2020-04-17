@@ -20,11 +20,11 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-//module interface(clk, rst, ideal, intt, lcr, dll, dlh, ideal_rx, rx, tx);
-module interface(clk, rst, ideal, intt, ideal_rx, rx, tx);
+module interface(clk, rst, ideal, intt, lcr, dll, dlh, ideal_rx, rx, tx);
+//module interface(clk, rst, ideal, intt, ideal_rx, rx, tx);
 
 input clk, rst, ideal_rx, ideal, intt, rx;
-//input [7:0]lcr, dll, dlh;
+input [7:0]lcr, dll, dlh;
 output tx;
 
 reg [7:0]conf_mod[7:0];
@@ -50,9 +50,9 @@ begin
     if(ideal==1'b1) //Write stage - transmission not started, the rules (data width and format) are determined here
     begin
 //        conf_mod[0] = 8'b0000_0000;
-        conf_mod[3] = 8'b1000_1011;
-        conf_mod[6] = 8'b0000_0010;
-        conf_mod[7] = 8'b0000_0000;
+        conf_mod[3] = lcr; //8'b1000_1011;
+        conf_mod[6] = dll; //8'b0000_0010;
+        conf_mod[7] = dlh; //8'b0000_0000;
     end
     if(ideal_rx==1'b1)
         conf_mod[1] = 8'b0000_0000;
@@ -101,6 +101,8 @@ begin
     end
     else
         conf_mod[0] = thr_out;
+    if(intt==1'b1)
+        d_count = d_count - 4'b0001;
     case(conf_mod[3][3])
     1'b0:
     begin
