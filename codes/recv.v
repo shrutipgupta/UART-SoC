@@ -27,6 +27,8 @@ output reg [7:0]rv_data;
 reg [3:0]high_bit, low_bit;
 reg null;
 
+initial 
+    rv_data = 8'b0000_0000;
 always @(posedge sample_clk)
 begin
     high_bit = 4'b0000;
