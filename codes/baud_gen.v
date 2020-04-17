@@ -20,29 +20,25 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module baud_gen(clk, br, dll, dlh);
+module baud_gen(clk, rst, br);
 
-input clk;
+input clk,rst;
 output reg br;
-input [7:0]dll;
-input [3:0]dlh;
-reg [11:0]counter;
+reg [3:0]brgcount;
 
-initial 
-begin
-    counter = 12'b0000_0000_0000;
-    br = 1'b0;
-end
 always @(posedge clk)
 begin
- counter <= counter + 12'b0000_0000_0001;
- if(counter>={dlh,dll-8'b0000_0001})
- begin
-  counter <= 12'b0000_0000_0000;
-  br = ~br;
- end
- if(counter == {1'b0,dlh,dll[6:0]})
-    br = ~br;
+    if(rst)
+    begin
+        brgcount = 4'b0000;
+        br = 0;
+    end
+    else 
+        brgcount = brgcount + 1'b1;
+    if (brgcount==4'b1111)
+    begin
+        brgcount = 16'b0000_0000_0000_0000;
+        br = ~br;
+    end
 end
-
 endmodule
